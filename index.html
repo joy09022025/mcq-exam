@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MCQ Exam</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; padding: 10px; }
+    .hidden { display: none; }
+    .qcard { border: 1px solid #ddd; padding: 12px; margin: 8px 0; border-radius: 6px; }
+    .timer { font-weight: bold; color: red; }
+    button { margin-top: 10px; padding: 8px 12px; }
+  </style>
+</head>
+<body>
+  <h1>MCQ Exam</h1>
+
+  <!-- Login -->
+  <div id="loginDiv">
+    <h3>Login</h3>
+    <label>Username: <input id="username"></label><br>
+    <label>Password: <input id="password" type="password"></label><br>
+    <button onclick="doLogin()">Login</button>
+    <div id="loginMsg" style="color:red"></div>
+  </div>
+
+  <!-- User Exam -->
+  <div id="examDiv" class="hidden">
+    <h3>Welcome, <span id="userName"></span></h3>
+    <div>Time left: <span id="timer" class="timer"></span></div>
+    <div id="questionsArea"></div>
+    <button onclick="submitExam()">Submit Exam</button>
+  </div>
+
+  <!-- Admin Panel -->
+  <div id="adminDiv" class="hidden">
+    <h3>Admin Panel</h3>
+    <button onclick="viewResults()">View Submissions</button>
+    <pre id="adminOutput"></pre>
+  </div>
+
+  <script>
+    // ✅ Replace with your Apps Script Web App URL
+    const API_URL = "https://script.google.com/macros/s/AKfycbztIVdxGVQqHjcQXpaWYt8fCKzuT0JGnhis_hvy2JZGflueG9PYfElyEYH_DQrYw4a2Ng/exec";
+
+    let role = null;
+    let username = null;
+    let answers = {};
+    let timerInterval = null;
+    let endTime = null;
+
+    // --- LOGIN ---
+    function doLogin() {
+      const u = document.getElementById("username").value.trim();
+      const p = document.getElementById("password").value;
+
+      if (u === "admin" && p === "admin@143") {
+        role = "admin"; username = u;
+        document.getElementById("loginDiv").classList.add("hidden");
+        document.getElementById("adminDiv").classList.remove("hidden");
+      } else if (u === "vasanth" && p === "anil@143") {
+        role = "user"; username = u;
+        document.getElementById("loginDiv").classList.add("hidden");
+        document.getElementById("examDiv").classList.remove("hidden");
+        document.getElementById("userName").textContent = username;
+        startExam();
+      } else {
+        document.getElementById("loginMsg").textContent = "Invalid credentials!";
+      }
+    }
+
+    // --- USER FLOW ---
+    function startExam() {
+      fetch(API_URL + "?action=getQuestions")
+        .then(res => res.json())
+        .then(data => renderQuestions(data));
+
+      // 50 minute timer
+      endTime = Date.now() + 50 * 60 * 1000;
+      timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    function renderQuestions(qs) {
+      const area = document.getElementById("questionsArea");
+      area.innerHTML = "";
+      qs.forEach(q => {
+        const div = document.createElement("div");
+        div.className = "qcard";
+        div.innerHTML = `<strong>Q${q.qno}.</strong> ${q.question}<br>`;
+        q.options.forEach((opt, i) => {
+          div.innerHTML += `<label><input type="radio" name="q${q.qno}" value="${i}" onchange="recordAnswer(${q.qno},${i})"> ${opt}</label><br>`;
+        });
+        area.appendChild(div);
+      });
+    }
+
+    function recordAnswer(qno, optIndex) {
+      answers[qno] = optIndex;
+    }
+
+    function updateTimer() {
+      const now = Date.now();
+      const diff = endTime - now;
+      if (diff <= 0) {
+        clearInterval(timerInterval);
+        document.getElementById("timer").textContent = "00:00";
+        autoSubmit();
+        return;
+      }
+      const m = String(Math.floor(diff / 60000)).padStart(2, "0");
+      const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, "0");
+      document.getElementById("timer").textContent = `${m}:${s}`;
+    }
+
+    function submitExam() {
+      const payload = { action: "submitAnswers", username, answers };
+      fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" }
+      })
+      .then(res => res.json())
+      .then(resp => alert("Exam submitted!"));
+    }
+
+    function autoSubmit() {
+      submitExam();
+      alert("Time up! Exam auto-submitted.");
+    }
+
+    // --- ADMIN FLOW ---
+    function viewResults() {
+      fetch(API_URL + "?action=getResults")
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById("adminOutput").textContent = JSON.stringify(data, null, 2);
+        });
+    }
+  </script>
+</body>
+</html>
